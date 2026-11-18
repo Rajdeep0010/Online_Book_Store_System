@@ -357,6 +357,30 @@ SELECT book_id, title, stock FROM books WHERE stock < 25;
 SELECT * FROM v_order_summary ORDER BY order_id;
 SELECT * FROM v_category_sales ORDER BY revenue DESC;
 
+-- Transactions
+-- A) successful order, one item removed with a savepoint
+START TRANSACTION;
+INSERT INTO orders (customer_id) VALUES (8);
+SET @new_order = LAST_INSERT_ID();
+INSERT INTO order_items (order_id, book_id, quantity) VALUES (@new_order, 2, 1);
+SAVEPOINT after_first_item;
+INSERT INTO order_items (order_id, book_id, quantity) VALUES (@new_order, 6, 1);
+ROLLBACK TO SAVEPOINT after_first_item;
+COMMIT;
+SELECT oi.order_id, b.title, oi.quantity, oi.unit_price
+FROM order_items oi
+JOIN books b ON b.book_id = oi.book_id
+WHERE oi.order_id = @new_order;
+
+-- B) failed order: the trigger blocks 999 copies, ROLLBACK undoes everything
+START TRANSACTION;
+INSERT INTO orders (customer_id) VALUES (8);
+INSERT INTO order_items (order_id, book_id, quantity)
+VALUES (LAST_INSERT_ID(), 8, 999);
+ROLLBACK;
+SELECT COUNT(*) AS orders_of_customer_8 FROM orders WHERE customer_id = 8;
+SELECT book_id, title, stock FROM books WHERE book_id IN (2, 6, 8);
+
 SHOW VARIABLES LIKE 'secure_file_priv';
 
 -- Export data
